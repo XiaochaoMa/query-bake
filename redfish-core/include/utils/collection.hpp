@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/container/flat_map.hpp>
+#include <utils/query_param.hpp>
 
 #include <string>
 #include <vector>
@@ -28,11 +29,13 @@ inline void
                          const std::vector<const char*>& interfaces,
                          const char* subtree = "/xyz/openbmc_project/inventory")
 {
+    // add up const crow::Request& req, crow::App& app,
     BMCWEB_LOG_DEBUG << "Get collection members for: " << collectionPath;
     crow::connections::systemBus->async_method_call(
         [collectionPath,
          aResp{std::move(aResp)}](const boost::system::error_code ec,
                                   const std::vector<std::string>& objects) {
+            // &req, &app,
             if (ec)
             {
                 BMCWEB_LOG_DEBUG << "DBUS response error";
@@ -53,6 +56,9 @@ inline void
                 }
             }
             aResp->res.jsonValue["Members@odata.count"] = members.size();
+
+            // redfish::query_param::excuteQueryParamAll(app, req, aResp);
+            // app.handle(req,aResp->res);
         },
         "xyz.openbmc_project.ObjectMapper",
         "/xyz/openbmc_project/object_mapper",

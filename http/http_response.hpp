@@ -109,6 +109,15 @@ struct Response
 
     void end()
     {
+        // if (*counthandle > 1)
+        // {
+        //     BMCWEB_LOG_ERROR << "handle's count not suit";
+        //     *counthandle = *counthandle - 1;
+        //     completeRequestHandler = nullptr;
+        //     completed = false;
+        //     return;
+        // }
+
         if (completed)
         {
             BMCWEB_LOG_ERROR << "Response was ended twice";
@@ -118,8 +127,16 @@ struct Response
         BMCWEB_LOG_DEBUG << "calling completion handler";
         if (completeRequestHandler)
         {
-            BMCWEB_LOG_DEBUG << "completion handler was valid";
-            completeRequestHandler();
+            try
+            {
+                BMCWEB_LOG_DEBUG << "completion handler was valid";
+                completeRequestHandler();
+            }
+            catch (int i)
+            {
+                completed = false;
+                return;
+            }
         }
     }
 

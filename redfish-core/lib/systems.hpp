@@ -20,10 +20,12 @@
 #include "pcie.hpp"
 #include "redfish_util.hpp"
 
+#include <async_resp.hpp>
 #include <boost/container/flat_map.hpp>
 #include <node.hpp>
 #include <utils/fw_utils.hpp>
 #include <utils/json_utils.hpp>
+#include <utils/query_param.hpp>
 
 #include <variant>
 
@@ -1854,7 +1856,7 @@ inline void setWDTProperties(const std::shared_ptr<AsyncResp>& aResp,
 class SystemsCollection : public Node
 {
   public:
-    SystemsCollection(App& app) : Node(app, "/redfish/v1/Systems/")
+    SystemsCollection(App& app) : Node(app, "/redfish/v1/Systems/"), app(app)
     {
         entityPrivileges = {
             {boost::beast::http::verb::get, {{"Login"}}},
@@ -1866,22 +1868,29 @@ class SystemsCollection : public Node
     }
 
   private:
-    void doGet(crow::Response& res, const crow::Request&,
+    App& app;
+    void doGet1(std::shared_ptr<bmcweb::AsyncResp> aResp,
+               const crow::Request& req,
                const std::vector<std::string>&) override
     {
-        std::shared_ptr<AsyncResp> asyncResp = std::make_shared<AsyncResp>(res);
-        res.jsonValue["@odata.type"] =
+        //  crow::Response& res
+        // std::shared_ptr<bmcweb::AsyncResp> asyncResp =
+        //     std::make_shared<bmcweb::AsyncResp>(res);
+        aResp->res.jsonValue["@odata.type"] =
             "#ComputerSystemCollection.ComputerSystemCollection";
-        res.jsonValue["@odata.id"] = "/redfish/v1/Systems";
-        res.jsonValue["Name"] = "Computer System Collection";
+        aResp->res.jsonValue["@odata.id"] = "/redfish/v1/Systems";
+        aResp->res.jsonValue["Name"] = "Computer System Collection";
+        // auto req_m = std::make_shared<crow::Request>(req);
+        // req_m->url = "/redfish/v1/Systems/system";
 
         crow::connections::systemBus->async_method_call(
-            [asyncResp](const boost::system::error_code ec,
-                        const std::variant<std::string>& /*hostName*/) {
+            [aResp, &req,
+             this](const boost::system::error_code ec,
+                   const std::variant<std::string>& /*hostName*/) {
                 nlohmann::json& ifaceArray =
-                    asyncResp->res.jsonValue["Members"];
+                    aResp->res.jsonValue["Members"];
                 ifaceArray = nlohmann::json::array();
-                auto& count = asyncResp->res.jsonValue["Members@odata.count"];
+                auto& count = aResp->res.jsonValue["Members@odata.count"];
                 ifaceArray.push_back(
                     {{"@odata.id", "/redfish/v1/Systems/system"}});
                 count = ifaceArray.size();
@@ -1893,6 +1902,17 @@ class SystemsCollection : public Node
                     count = ifaceArray.size();
                     return;
                 }
+
+                // asyncResp->res.bhandle = true;
+                BMCWEB_LOG_DEBUG
+                    << "--------------->>>>>>>>>>>>>system-beforeAll";
+                redfish::query_param::excuteQueryParamAll(this->app, req,
+                                                          aResp);
+                // asyncResp->res.bhandle = false;
+
+                BMCWEB_LOG_DEBUG
+                    << "--------------->>>>>>>>>>>>>system-afterAll";
+                // this->app.handle(*req_m, asyncResp->res);
             },
             "xyz.openbmc_project.Settings",
             "/xyz/openbmc_project/network/hypervisor",

@@ -45,20 +45,22 @@ class BaseRule
         return {};
     }
 
-    virtual void handle(const Request&, Response&, const RoutingParams&) = 0;
-    virtual void handleUpgrade(const Request&, Response& res,
+    virtual void handle(const Request&, std::shared_ptr<bmcweb::AsyncResp>,
+                        const RoutingParams&) = 0;
+    virtual void handleUpgrade(const Request&,
+                               std::shared_ptr<bmcweb::AsyncResp> aResp,
                                boost::asio::ip::tcp::socket&&)
     {
-        res.result(boost::beast::http::status::not_found);
-        res.end();
+        aResp->res.result(boost::beast::http::status::not_found);
+        // res.end();
     }
 #ifdef BMCWEB_ENABLE_SSL
     virtual void
-        handleUpgrade(const Request&, Response& res,
+        handleUpgrade(const Request&, std::shared_ptr<bmcweb::AsyncResp> aResp,
                       boost::beast::ssl_stream<boost::asio::ip::tcp::socket>&&)
     {
-        res.result(boost::beast::http::status::not_found);
-        res.end();
+        aResp->res.result(boost::beast::http::status::not_found);
+        // res.end();
     }
 #endif
 
@@ -319,13 +321,14 @@ class WebSocketRule : public BaseRule
     void validate() override
     {}
 
-    void handle(const Request&, Response& res, const RoutingParams&) override
+    void handle(const Request&, std::shared_ptr<bmcweb::AsyncResp> aResp,
+                const RoutingParams&) override
     {
-        res.result(boost::beast::http::status::not_found);
-        res.end();
+        aResp->res.result(boost::beast::http::status::not_found);
+        // res.end();
     }
 
-    void handleUpgrade(const Request& req, Response&,
+    void handleUpgrade(const Request& req, std::shared_ptr<bmcweb::AsyncResp>,
                        boost::asio::ip::tcp::socket&& adaptor) override
     {
         std::shared_ptr<
@@ -337,7 +340,7 @@ class WebSocketRule : public BaseRule
         myConnection->start();
     }
 #ifdef BMCWEB_ENABLE_SSL
-    void handleUpgrade(const Request& req, Response&,
+    void handleUpgrade(const Request& req, std::shared_ptr<bmcweb::AsyncResp>,
                        boost::beast::ssl_stream<boost::asio::ip::tcp::socket>&&
                            adaptor) override
     {
@@ -460,10 +463,10 @@ class DynamicRule : public BaseRule, public RuleParameterTraits<DynamicRule>
         }
     }
 
-    void handle(const Request& req, Response& res,
+    void handle(const Request& req, std::shared_ptr<bmcweb::AsyncResp> aResp,
                 const RoutingParams& params) override
     {
-        erasedHandler(req, res, params);
+        erasedHandler(req, aResp->res, params);
     }
 
     template <typename Func>
@@ -618,14 +621,14 @@ class TaggedRule :
         (*this).template operator()<Func>(std::forward(f));
     }
 
-    void handle(const Request& req, Response& res,
+    void handle(const Request& req, std::shared_ptr<bmcweb::AsyncResp> aResp,
                 const RoutingParams& params) override
     {
         detail::routing_handler_call_helper::Call<
             detail::routing_handler_call_helper::CallParams<decltype(handler)>,
             0, 0, 0, 0, black_magic::S<Args...>, black_magic::S<>>()(
             detail::routing_handler_call_helper::CallParams<decltype(handler)>{
-                handler, params, req, res});
+                handler, params, req, aResp->res});
     }
 
   private:
@@ -1116,12 +1119,14 @@ class Router
     }
 
     template <typename Adaptor>
-    void handleUpgrade(const Request& req, Response& res, Adaptor&& adaptor)
+    void handleUpgrade(const Request& req,
+                       std::shared_ptr<bmcweb::AsyncResp> aResp,
+                       Adaptor&& adaptor)
     {
         if (static_cast<size_t>(req.method()) >= perMethods.size())
         {
-            res.result(boost::beast::http::status::not_found);
-            res.end();
+            aResp->res.result(boost::beast::http::status::not_found);
+            // res.end();
             return;
         }
 
@@ -1134,8 +1139,8 @@ class Router
         if (!ruleIndex)
         {
             BMCWEB_LOG_DEBUG << "Cannot match rules " << req.url;
-            res.result(boost::beast::http::status::not_found);
-            res.end();
+            aResp->res.result(boost::beast::http::status::not_found);
+            // res.end();
             return;
         }
 
@@ -1148,23 +1153,23 @@ class Router
         {
             BMCWEB_LOG_INFO << "Redirecting to a url with trailing slash: "
                             << req.url;
-            res.result(boost::beast::http::status::moved_permanently);
+            aResp->res.result(boost::beast::http::status::moved_permanently);
 
             // TODO absolute url building
             if (req.getHeaderValue("Host").empty())
             {
-                res.addHeader("Location", std::string(req.url) + "/");
+                aResp->res.addHeader("Location", std::string(req.url) + "/");
             }
             else
             {
-                res.addHeader(
+                aResp->res.addHeader(
                     "Location",
                     req.isSecure
                         ? "https://"
                         : "http://" + std::string(req.getHeaderValue("Host")) +
                               std::string(req.url) + "/");
             }
-            res.end();
+            // res.end();
             return;
         }
 
@@ -1175,8 +1180,8 @@ class Router
                              << " with " << req.methodString() << "("
                              << static_cast<uint32_t>(req.method()) << ") / "
                              << rules[ruleIndex]->getMethods();
-            res.result(boost::beast::http::status::not_found);
-            res.end();
+            aResp->res.result(boost::beast::http::status::not_found);
+            // res.end();
             return;
         }
 
@@ -1187,13 +1192,14 @@ class Router
         // any uncaught exceptions become 500s
         try
         {
-            rules[ruleIndex]->handleUpgrade(req, res, std::move(adaptor));
+            rules[ruleIndex]->handleUpgrade(req, aResp, std::move(adaptor));
         }
         catch (std::exception& e)
         {
             BMCWEB_LOG_ERROR << "An uncaught exception occurred: " << e.what();
-            res.result(boost::beast::http::status::internal_server_error);
-            res.end();
+            aResp->res.result(
+                boost::beast::http::status::internal_server_error);
+            // res.end();
             return;
         }
         catch (...)
@@ -1201,18 +1207,22 @@ class Router
             BMCWEB_LOG_ERROR
                 << "An uncaught exception occurred. The type was unknown "
                    "so no information was available.";
-            res.result(boost::beast::http::status::internal_server_error);
-            res.end();
+            aResp->res.result(
+                boost::beast::http::status::internal_server_error);
+            // res.end();
             return;
         }
     }
 
-    void handle(Request& req, Response& res)
+    void handle(Request& req, std::shared_ptr<bmcweb::AsyncResp> aResp)
     {
+        BMCWEB_LOG_INFO << "-------> router.handle's aResp ="
+                        << aResp.use_count();
+        /* Response& res */
         if (static_cast<size_t>(req.method()) >= perMethods.size())
         {
-            res.result(boost::beast::http::status::not_found);
-            res.end();
+            aResp->res.result(boost::beast::http::status::not_found);
+            // aResp->res.end();
             return;
         }
         PerMethod& perMethod = perMethods[static_cast<size_t>(req.method())];
@@ -1232,14 +1242,15 @@ class Router
                     p.trie.find(req.url);
                 if (found2.first > 0)
                 {
-                    res.result(boost::beast::http::status::method_not_allowed);
-                    res.end();
+                    aResp->res.result(
+                        boost::beast::http::status::method_not_allowed);
+                    // aResp->res.end();
                     return;
                 }
             }
             BMCWEB_LOG_DEBUG << "Cannot match rules " << req.url;
-            res.result(boost::beast::http::status::not_found);
-            res.end();
+            aResp->res.result(boost::beast::http::status::not_found);
+            // aResp->res.end();
             return;
         }
 
@@ -1252,21 +1263,21 @@ class Router
         {
             BMCWEB_LOG_INFO << "Redirecting to a url with trailing slash: "
                             << req.url;
-            res.result(boost::beast::http::status::moved_permanently);
+            aResp->res.result(boost::beast::http::status::moved_permanently);
 
             // TODO absolute url building
             if (req.getHeaderValue("Host").empty())
             {
-                res.addHeader("Location", std::string(req.url) + "/");
+                aResp->res.addHeader("Location", std::string(req.url) + "/");
             }
             else
             {
-                res.addHeader("Location",
-                              (req.isSecure ? "https://" : "http://") +
-                                  std::string(req.getHeaderValue("Host")) +
-                                  std::string(req.url) + "/");
+                aResp->res.addHeader(
+                    "Location", (req.isSecure ? "https://" : "http://") +
+                                    std::string(req.getHeaderValue("Host")) +
+                                    std::string(req.url) + "/");
             }
-            res.end();
+            // aResp->res.end();
             return;
         }
 
@@ -1277,8 +1288,8 @@ class Router
                              << " with " << req.methodString() << "("
                              << static_cast<uint32_t>(req.method()) << ") / "
                              << rules[ruleIndex]->getMethods();
-            res.result(boost::beast::http::status::method_not_allowed);
-            res.end();
+            aResp->res.result(boost::beast::http::status::method_not_allowed);
+            // aResp->res.end();
             return;
         }
 
@@ -1288,22 +1299,24 @@ class Router
 
         if (req.session == nullptr)
         {
-            rules[ruleIndex]->handle(req, res, found.second);
+            rules[ruleIndex]->handle(req, aResp, found.second);
+            // ->res
             return;
         }
 
         crow::connections::systemBus->async_method_call(
-            [&req, &res, &rules, ruleIndex, found](
+            [&req, aResp{std::move(aResp)}, &rules, ruleIndex, found](
                 const boost::system::error_code ec,
                 std::map<std::string, std::variant<bool, std::string,
                                                    std::vector<std::string>>>
                     userInfo) {
+                /* &res */
                 if (ec)
                 {
                     BMCWEB_LOG_ERROR << "GetUserInfo failed...";
-                    res.result(
+                    aResp->res.result(
                         boost::beast::http::status::internal_server_error);
-                    res.end();
+                    // aResp->res.end();
                     return;
                 }
 
@@ -1333,9 +1346,9 @@ class Router
                 {
                     BMCWEB_LOG_ERROR
                         << "RemoteUser property missing or wrong type";
-                    res.result(
+                    aResp->res.result(
                         boost::beast::http::status::internal_server_error);
-                    res.end();
+                    // aResp->res.end();
                     return;
                 }
                 bool remoteUser = *remoteUserPtr;
@@ -1360,9 +1373,9 @@ class Router
                         BMCWEB_LOG_ERROR
                             << "UserPasswordExpired property is expected for"
                                " local user but is missing or wrong type";
-                        res.result(
+                        aResp->res.result(
                             boost::beast::http::status::internal_server_error);
-                        res.end();
+                        // aResp->res.end();
                         return;
                     }
                 }
@@ -1387,20 +1400,23 @@ class Router
 
                 if (!rules[ruleIndex]->checkPrivileges(userPrivileges))
                 {
-                    res.result(boost::beast::http::status::forbidden);
+                    aResp->res.result(boost::beast::http::status::forbidden);
                     if (req.session->isConfigureSelfOnly)
                     {
                         redfish::messages::passwordChangeRequired(
-                            res, "/redfish/v1/AccountService/Accounts/" +
-                                     req.session->username);
+                            aResp->res, "/redfish/v1/AccountService/Accounts/" +
+                                            req.session->username);
                     }
-                    res.end();
+                    // aResp->res.end();
                     return;
                 }
+                // BMCWEB_LOG_DEBUG << "aResp->res.bhandle= "
+                //                  << aResp->res.bhandle;
 
                 req.userRole = userRole;
 
-                rules[ruleIndex]->handle(req, res, found.second);
+                rules[ruleIndex]->handle(req, aResp, found.second);
+                // ->res
             },
             "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
             "xyz.openbmc_project.User.Manager", "GetUserInfo",

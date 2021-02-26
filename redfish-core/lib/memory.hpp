@@ -838,6 +838,7 @@ class MemoryCollection : public Node
      */
     MemoryCollection(App& app) : Node(app, "/redfish/v1/Systems/system/Memory/")
     {
+        // , app(app)
         entityPrivileges = {
             {boost::beast::http::verb::get, {{"Login"}}},
             {boost::beast::http::verb::head, {{"Login"}}},
@@ -848,12 +849,14 @@ class MemoryCollection : public Node
     }
 
   private:
+    // App& app;
     /**
      * Functions triggers appropriate requests on DBus
      */
     void doGet(crow::Response& res, const crow::Request&,
                const std::vector<std::string>&) override
     {
+        // req
         res.jsonValue["@odata.type"] = "#MemoryCollection.MemoryCollection";
         res.jsonValue["Name"] = "Memory Module Collection";
         res.jsonValue["@odata.id"] = "/redfish/v1/Systems/system/Memory";
@@ -862,6 +865,10 @@ class MemoryCollection : public Node
         collection_util::getCollectionMembers(
             asyncResp, "/redfish/v1/Systems/system/Memory",
             {"xyz.openbmc_project.Inventory.Item.Dimm"});
+
+        //     collection_util::getCollectionMembers(
+        // asyncResp, req, app, "/redfish/v1/Systems/system/Memory",
+        // {"xyz.openbmc_project.Inventory.Item.Dimm"});
     }
 };
 

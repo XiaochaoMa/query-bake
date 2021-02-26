@@ -21,6 +21,7 @@
 
 #include <boost/container/flat_map.hpp>
 #include <utils/collection.hpp>
+// #include <utils/query_param.hpp>
 
 #include <variant>
 
@@ -163,6 +164,7 @@ class ChassisCollection : public Node
   public:
     ChassisCollection(App& app) : Node(app, "/redfish/v1/Chassis/")
     {
+        // , app(app)
         entityPrivileges = {
             {boost::beast::http::verb::get, {{"Login"}}},
             {boost::beast::http::verb::head, {{"Login"}}},
@@ -173,6 +175,7 @@ class ChassisCollection : public Node
     }
 
   private:
+    // App& app;
     /**
      * Functions triggers appropriate requests on DBus
      */
@@ -189,6 +192,20 @@ class ChassisCollection : public Node
             asyncResp, "/redfish/v1/Chassis",
             {"xyz.openbmc_project.Inventory.Item.Board",
              "xyz.openbmc_project.Inventory.Item.Chassis"});
+
+        // collection_util::getCollectionMembers(
+        //     asyncResp, req, app, "/redfish/v1/Chassis",
+        //     {"xyz.openbmc_project.Inventory.Item.Board",
+        //      "xyz.openbmc_project.Inventory.Item.Chassis"});
+
+        // , req, app
+        // auto req_m = std::make_shared<crow::Request>(req);
+        // // res.clear();
+        // std::cerr << "xiaochao -2" << std::endl;
+        // req_m->url = "/redfish/v1/Chassis/chassis";
+
+        // app.handle(*req_m, res);
+        // std::cerr << "xiaochao-3 " << req_m->url << std::endl;
     }
 };
 

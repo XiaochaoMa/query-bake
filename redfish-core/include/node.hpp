@@ -19,6 +19,7 @@
 #include "http_response.hpp"
 #include "privileges.hpp"
 
+#include <async_resp.hpp>
 #include <error_messages.hpp>
 
 #include <vector>
@@ -61,6 +62,13 @@ class Node
                    Params... params) {
                 std::vector<std::string> paramVec = {params...};
                 doGet(res, req, paramVec);
+            });
+
+        get.methods(boost::beast::http::verb::get)(
+            [this](const crow::Request& req,
+                   std::shared_ptr<bmcweb::AsyncResp> aResp, Params... params) {
+                std::vector<std::string> paramVec = {params...};
+                doGet1(aResp, req, paramVec);
             });
 
         crow::DynamicRule& patch = app.routeDynamic(entityUrl.c_str());
@@ -161,6 +169,13 @@ class Node
     {
         res.result(boost::beast::http::status::method_not_allowed);
         res.end();
+    }
+
+    virtual void doGet1(std::shared_ptr<bmcweb::AsyncResp> aResp,
+                       const crow::Request&, const std::vector<std::string>&)
+    {
+        aResp->res.result(boost::beast::http::status::method_not_allowed);
+        aResp->res.end();
     }
 
     virtual void doPatch(crow::Response& res, const crow::Request&,

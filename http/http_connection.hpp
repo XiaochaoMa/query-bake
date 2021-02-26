@@ -5,9 +5,11 @@
 #include "http_response.hpp"
 #include "http_utility.hpp"
 #include "logging.hpp"
+// #include "node.hpp"
 #include "timer_queue.hpp"
 #include "utility.hpp"
 
+#include <async_resp.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/asio/io_context.hpp>
@@ -70,6 +72,11 @@ class Connection :
         parser->body_limit(httpReqBodyLimit);
         parser->header_limit(httpHeaderLimit);
         req.emplace(parser->get());
+
+        BMCWEB_LOG_INFO << "consruct--AsResp.origin count= "
+                        << AsResp.use_count();
+        // BMCWEB_LOG_INFO << "consruct--aResp.origin count= "
+        //                 << aResp.use_count();
 
 #ifdef BMCWEB_ENABLE_MUTUAL_TLS_AUTHENTICATION
         std::error_code error;
@@ -309,6 +316,11 @@ class Connection :
 
     void handle()
     {
+        BMCWEB_LOG_INFO << "---------->AsResp.handle count= "
+                        << AsResp.use_count();
+        // BMCWEB_LOG_INFO << "---------->aResp.handle count= "
+        //                 << aResp.use_count();
+
         cancelDeadlineTimer();
 
         bool isInvalidRequest = false;
@@ -319,7 +331,7 @@ class Connection :
             if (req->getHeaderValue(boost::beast::http::field::host).empty())
             {
                 isInvalidRequest = true;
-                res.result(boost::beast::http::status::bad_request);
+                AsResp->res.result(boost::beast::http::status::bad_request);
             }
         }
 
@@ -332,31 +344,47 @@ class Connection :
 
         if (!isInvalidRequest)
         {
-            res.completeRequestHandler = [] {};
-            res.isAliveHelper = [this]() -> bool { return isAlive(); };
+            AsResp->res.completeRequestHandler = [] {};
+            AsResp->res.isAliveHelper = [this]() -> bool { return isAlive(); };
 
             req->ioService = static_cast<decltype(req->ioService)>(
                 &adaptor.get_executor().context());
 
-            if (!res.completed)
+            if (!(AsResp->res.completed))
             {
                 needToCallAfterHandlers = true;
-                res.completeRequestHandler = [self(shared_from_this())] {
-                    boost::asio::post(self->adaptor.get_executor(),
-                                      [self] { self->completeRequest(); });
-                };
+                AsResp->res.completeRequestHandler =
+                    [self(shared_from_this())] {
+                        boost::asio::post(self->adaptor.get_executor(), [self] {
+                            // BMCWEB_LOG_INFO << "weak-use-count ="
+                            //                 << self->aResp.use_count();
+                            BMCWEB_LOG_INFO << "share-use-count = "
+                                            << self->AsResp.use_count();
+                            if (self->AsResp.use_count() > 1)
+                            {
+                                BMCWEB_LOG_INFO
+                                    << "------->completeHandle AsResp.count ="
+                                    << self->AsResp.use_count();
+                                throw 1;
+                            }
+                            self->completeRequest();
+                        });
+                    };
                 if (req->isUpgrade() &&
                     boost::iequals(
                         req->getHeaderValue(boost::beast::http::field::upgrade),
                         "websocket"))
                 {
-                    handler->handleUpgrade(*req, res, std::move(adaptor));
+                    handler->handleUpgrade(*req, AsResp, std::move(adaptor));
                     // delete lambda with self shared_ptr
                     // to enable connection destruction
-                    res.completeRequestHandler = nullptr;
+                    AsResp->res.completeRequestHandler = nullptr;
                     return;
                 }
-                handler->handle(*req, res);
+                BMCWEB_LOG_INFO << "---->share-use-count = "
+                                << AsResp.use_count();
+                handler->handle(*req, AsResp);
+                // aResp.lock();
             }
             else
             {
@@ -770,6 +798,9 @@ class Connection :
 
     std::optional<crow::Request> req;
     crow::Response res;
+    std::shared_ptr<bmcweb::AsyncResp> AsResp =
+        std::make_shared<bmcweb::AsyncResp>(res);
+    // std::weak_ptr<bmcweb::AsyncResp> aResp = AsResp;
 
     std::weak_ptr<persistent_data::UserSession> session;
 

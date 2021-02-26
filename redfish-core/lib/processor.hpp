@@ -743,6 +743,7 @@ class OperatingConfigCollection : public Node
              "/redfish/v1/Systems/system/Processors/<str>/OperatingConfigs/",
              std::string())
     {
+        //,app(app)
         // Defined by Redfish spec privilege registry
         entityPrivileges = {
             {boost::beast::http::verb::get, {{"Login"}}},
@@ -754,6 +755,7 @@ class OperatingConfigCollection : public Node
     }
 
   private:
+    // App& app;
     void doGet(crow::Response& res, const crow::Request& req,
                const std::vector<std::string>& params) override
     {
@@ -777,6 +779,7 @@ class OperatingConfigCollection : public Node
         crow::connections::systemBus->async_method_call(
             [asyncResp, cpuName](const boost::system::error_code ec,
                                  const std::vector<std::string>& objects) {
+                //  , &req, this
                 if (ec)
                 {
                     BMCWEB_LOG_WARNING << "D-Bus error: " << ec << ", "
@@ -804,6 +807,14 @@ class OperatingConfigCollection : public Node
                         {"xyz.openbmc_project.Inventory.Item.Cpu."
                          "OperatingConfig"},
                         object.c_str());
+
+                    // collection_util::getCollectionMembers(
+                    // asyncResp, req, this->app,
+                    // "/redfish/v1/Systems/system/Processors/" + cpuName +
+                    //     "/OperatingConfigs",
+                    // {"xyz.openbmc_project.Inventory.Item.Cpu."
+                    //  "OperatingConfig"},
+                    // object.c_str());
                     return;
                 }
             },
@@ -908,6 +919,7 @@ class ProcessorCollection : public Node
     ProcessorCollection(App& app) :
         Node(app, "/redfish/v1/Systems/system/Processors/")
     {
+        //, app(app)
         entityPrivileges = {
             {boost::beast::http::verb::get, {{"Login"}}},
             {boost::beast::http::verb::head, {{"Login"}}},
@@ -918,12 +930,14 @@ class ProcessorCollection : public Node
     }
 
   private:
+    // App& app;
     /**
      * Functions triggers appropriate requests on DBus
      */
     void doGet(crow::Response& res, const crow::Request&,
                const std::vector<std::string>&) override
     {
+        // req
         res.jsonValue["@odata.type"] =
             "#ProcessorCollection.ProcessorCollection";
         res.jsonValue["Name"] = "Processor Collection";
@@ -935,6 +949,11 @@ class ProcessorCollection : public Node
             asyncResp, "/redfish/v1/Systems/system/Processors",
             {"xyz.openbmc_project.Inventory.Item.Cpu",
              "xyz.openbmc_project.Inventory.Item.Accelerator"});
+
+        //   collection_util::getCollectionMembers(
+        // asyncResp, req, app, "/redfish/v1/Systems/system/Processors",
+        // {"xyz.openbmc_project.Inventory.Item.Cpu",
+        //  "xyz.openbmc_project.Inventory.Item.Accelerator"});
     }
 };
 

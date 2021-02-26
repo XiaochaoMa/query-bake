@@ -23,6 +23,7 @@
 #include <boost/date_time.hpp>
 #include <dbus_utility.hpp>
 #include <utils/fw_utils.hpp>
+// #include <utils/query_param.hpp>
 #include <utils/systemd_utils.hpp>
 
 #include <cstdint>
@@ -1847,6 +1848,7 @@ class Manager : public Node
                                      << ec;
                     return;
                 }
+                std::cerr << "xiaochao.members-bmc-18" << std::endl;
                 if (subtree.size() == 0)
                 {
                     BMCWEB_LOG_DEBUG << "Can't find bmc D-Bus object!";
@@ -1870,7 +1872,7 @@ class Manager : public Node
 
                 const std::string& path = subtree[0].first;
                 const std::string& connectionName = subtree[0].second[0].first;
-
+                std::cerr << "xiaochao.members-bmc-20" << std::endl;
                 crow::connections::systemBus->async_method_call(
                     [asyncResp](
                         const boost::system::error_code ec,
@@ -1882,6 +1884,7 @@ class Manager : public Node
                             BMCWEB_LOG_DEBUG << "Can't get bmc asset!";
                             return;
                         }
+                        std::cerr << "xiaochao.members-bmc-21" << std::endl;
                         for (const std::pair<std::string,
                                              std::variant<std::string>>&
                                  property : propertiesList)
@@ -2185,6 +2188,7 @@ class ManagerCollection : public Node
   public:
     ManagerCollection(App& app) : Node(app, "/redfish/v1/Managers/")
     {
+        // up add  , app(app)
         entityPrivileges = {
             {boost::beast::http::verb::get, {{"Login"}}},
             {boost::beast::http::verb::head, {{"Login"}}},
@@ -2195,6 +2199,7 @@ class ManagerCollection : public Node
     }
 
   private:
+    // App& app;
     void doGet(crow::Response& res, const crow::Request&,
                const std::vector<std::string>&) override
     {
@@ -2206,6 +2211,10 @@ class ManagerCollection : public Node
         res.jsonValue["Members@odata.count"] = 1;
         res.jsonValue["Members"] = {
             {{"@odata.id", "/redfish/v1/Managers/bmc"}}};
+
+        // auto asyncResp = std::make_shared<AsyncResp>(res);
+
+        // redfish::query_param::excuteQueryParamAll(app, req, asyncResp);
         res.end();
     }
 };
